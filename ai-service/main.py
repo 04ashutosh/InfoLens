@@ -1,12 +1,23 @@
 from fastapi import FastAPI
 from models.schemas import ArticleRequest, ArticleResponse
+from fastapi.middleware.cors import CORSMiddleware
 
+# Create app FIRST, then add middleware
 app = FastAPI(
     title="Infolens AI Service",
     description="AI platform for Indian news intelligence",
     version="0.1.0"
 )
 
+# CORS must come AFTER app is created
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:4200"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# In-memory storage (temporary — replaced by MongoDB in Phase 10)
 articles_db = []
 
 # Health check
@@ -29,7 +40,7 @@ def get_sources():
 # Add article
 @app.post("/api/articles", response_model=ArticleResponse)
 def create_article(article: ArticleRequest):
-    new_id = len(articles_db)+1
+    new_id = len(articles_db) + 1
     articles_db.append(article.model_dump())
     return ArticleResponse(
         id=new_id,

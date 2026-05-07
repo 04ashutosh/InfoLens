@@ -1,0 +1,37 @@
+<div class="min-h-screen bg-gray-950 text-white p-8">
+
+  <!-- Header -->
+  <div class="text-center mb-12">
+    <h1 class="text-5xl font-bold bg-gradient-to-r from-orange-400 via-white to-green-400 bg-clip-text text-transparent">
+      🇮🇳 InfoLens AI
+    </h1>
+    <p class="text-gray-400 mt-2 text-lg">Indian Multi-Perspective News Intelligence</p>
+
+    <!-- Health Badge -->
+    <div class="mt-4 inline-block px-4 py-1 rounded-full text-sm"
+         [ngClass]="healthStatus === 'running'
+           ? 'bg-green-900 text-green-300 border border-green-700'
+           : 'bg-red-900 text-red-300 border border-red-700'">
+      AI Service: {{ healthStatus }}
+    </div>
+  </div>
+
+  <!-- Sources Grid -->
+  <div class="max-w-4xl mx-auto">
+    <h2 class="text-2xl font-semibold mb-6">📡 News Sources</h2>
+
+    <div *ngIf="isLoading" class="text-gray-500 text-center py-8">
+      Loading sources...
+    </div>
+
+    <div *ngIf="!isLoading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div *ngFor="let source of sources"
+           class="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-orange-500 transition-all duration-300 hover:shadow-lg hover:shadow-orange-500/10">
+        <h3 class="text-lg font-medium text-white">{{ source.name }}</h3>
+        <span class="text-sm text-gray-400 mt-1 inline-block px-2 py-0.5 bg-gray-800 rounded-full">
+          {{ source.category }}
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
