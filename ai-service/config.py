@@ -25,3 +25,6 @@ NEWS_SOURCES = [
     {"name": "The News Minute", "category": "Digital", "rss_url": "https://www.thenewsminute.com/feed"},
     {"name": "Alt News", "category": "Fact-check", "rss_url": ""},
 ]
+
+# Ollama local LLM
+OLLAMA_BASE_URL = "http://localhost:11434"

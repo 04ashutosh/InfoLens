@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import APP_TITLE, APP_DESCRIPTION, APP_VERSION, FRONTEND_URL
-from routers import health, sources, articles
+from routers import health, sources, articles, ai
 
 # Create app
 app = FastAPI(
@@ -22,3 +22,4 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(sources.router)
 app.include_router(articles.router)
+app.include_router(ai.router)
