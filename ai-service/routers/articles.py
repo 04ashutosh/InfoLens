@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from models.schemas import ArticleRequest, ArticleResponse
 from services.news_service import get_all_articles, add_article, get_articles_by_source
+from services.news_service import fetch_rss_news
 
 router = APIRouter(prefix="/api", tags=["Articles"])
 
@@ -28,3 +29,9 @@ def list_articles(source: str = None):
     else:
         articles = get_all_articles()
     return {"articles": articles, "total": len(articles)}
+
+@router.post("/articles/fetch-latest")
+def trigger_news_fetch():
+    """Trigger the system to go out and download the latest news from all sources."""
+    result = fetch_rss_news()
+    return result
