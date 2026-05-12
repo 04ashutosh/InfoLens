@@ -3,6 +3,7 @@ from models.schemas import ArticleRequest, ArticleResponse
 from services.news_service import get_all_articles, add_article, get_articles_by_source
 from services.news_service import fetch_rss_news
 from services.llm_service import generate_response
+from services.news_service import find_similar_articles
 
 router = APIRouter(prefix="/api", tags=["Articles"])
 
@@ -77,3 +78,9 @@ def generate_daily_brief():
         "titles_analyzed": [a['title'] for a in top_3],
         "daily_brief": ai_summary
     }
+
+@router.get("/articles/{article_id}/similar")
+def get_similar_articles(article_id: int, threshold: float = 0.5):
+    """Find articles about the exact same topic"""
+    similar = find_similar_articles(article_id, threshold=threshold)
+    return {"target_id": article_id, "threshold": threshold, "similar_articles": similar}
