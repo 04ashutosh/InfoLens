@@ -1,5 +1,6 @@
 import requests
 from config import OLLAMA_BASE_URL
+import json
 
 def generate_response(prompt: str, model: str = "qwen2.5:7b")-> str:
     """
@@ -48,3 +49,41 @@ def generate_embedding(text: str, model: str = "nomic-embed-text")-> list: #Gene
     except Exception as e:
         print(f"Embedding error: {e}")
         return []
+
+def analyze_article_bias(title: str, content: str) -> dict:
+    """Uses Ollama to estimate the bias and tone of an article, returning strict JSON."""
+
+    prompt = f"""
+You are an impartial media analyst. Read the following news article and estimate its political bias and emotional tone.
+You MUST respond in strict JSON format matching this schema exactly:
+{{
+    "bias_rating": "Left-Leaning" | "Center" | "Right-Leaning",
+    "reasoning": "A 1-2 sentence explanation of why.",
+    "emotional_tone": "Neutral" | "Sensationalized" | "Defensive"
+}}
+
+Article Title: {title}
+Article Content: {content}
+"""
+    
+    payload = {
+        "model": "qwen2.5:7b",
+        "prompt": prompt,
+        "stream": False,
+        "format": "json"
+    }
+
+    try:
+        response = requests.post(f"{OLLAMA_BASE_URL}/api/generate", json=payload)
+        response.raise_for_status()
+        result = response.json()
+
+        # Parse the JSON string returned by Ollama into a Python dictionary
+        return json.loads(result["response"])
+    except Exception as e:
+        print(f"Error analyzing bias: {e}")
+        return{
+            "bias_rating": "Unknown",
+            "reasoning": "Failed to analyze bias due to an error.",
+            "emotional_tone": "Unknown"
+        }

@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from models.schemas import ArticleRequest, ArticleResponse
 from services.news_service import get_all_articles, add_article, get_articles_by_source
 from services.news_service import fetch_rss_news
-from services.llm_service import generate_response
+from services.llm_service import generate_response, analyze_article_bias
 from services.news_service import find_similar_articles
 
 router = APIRouter(prefix="/api", tags=["Articles"])
@@ -84,3 +84,23 @@ def get_similar_articles(article_id: int, threshold: float = 0.5):
     """Find articles about the exact same topic"""
     similar = find_similar_articles(article_id, threshold=threshold)
     return {"target_id": article_id, "threshold": threshold, "similar_articles": similar}
+
+@router.get("/articles/{article_id}/bias")
+def get_article_bias(article_id: int):
+    """Estimate the political bias and emotional tone of a specific article."""
+
+    # Grab all articles and find the specifc one requested
+    articles = get_all_articles()
+    target_article = next((a for a in articles if a["id"] == article_id), None)
+
+    if not target_article:
+        raise HTTPException(status_code=404, detail="Article not found. Did you fetch the RSS feed?")
+    
+    # Send it to our AI pipeline
+    analysis = analyze_article_bias(target_article["title"], target_article["content"])
+
+    return {
+        "article_id": article_id,
+        "title": target_article["title"],
+        "analysis": analysis
+    }
