@@ -1,55 +1,55 @@
 from datetime import datetime
-from config import NEWS_SOURCES
+from config import NEWS_SOURCES, MONGO_URI, DB_NAME
 import feedparser
 import math
 from services.llm_service import generate_embedding
+from pymongo import MongoClient
 
-articles_db = []
+# Connect to MongoDB
+client = MongoClient(MONGO_URI)
+db = client[DB_NAME]
+articles_collection = db["articles"]
 
 def get_all_sources():
     """Return all configured news sources."""
     return NEWS_SOURCES
 
 def get_all_articles():
-    """Return all stored articles."""
-    return articles_db
-
-
+    """Return all sorted articles directly from MongoDB."""
+    # Convert MongoDB cursor to list and remove the internal_id for the API
+    articles = list(articles_collection.find({},{"_id":0}))
+    return articles
 
 def get_articles_by_source(source_name: str):
-    """Filter articles by source name."""
-    return [a for a in articles_db if a["source"].lower()==source_name.lower()]
+    """Filter artciles by source name in MongoDB."""
+    articles = list(articles_collection.find({"source": source_name},{"_id": 0}))
+    return articles
 
 def fetch_rss_news():
     """
-    Go through our configured sources, fetch their RSS feeds,
-    and add the latest 5 articles from each to the database.
+        Go through our configured sources, fetch their RSS feeds,
+        and add the latest 5 articles from each to the database.
     """
-
     news_articles_count = 0
 
     for source in NEWS_SOURCES:
         rss_url = source.get("rss_url")
 
-        # Skip sources where we haven't added an RSS link yet
         if not rss_url:
             continue
 
         try:
-            # feedparser reads the URL and converts the XML to Python object
             feed = feedparser.parse(rss_url)
 
-            # Grab just the top 5 newest entries
             for entry in feed.entries[:5]:
-                # feedparser gives us safe defaults if a field is missing
                 title = entry.get("title","No Title")
                 content = entry.get("summary","No Content")
 
-                # Check if we already have this article to avoid duplicates
-                exists = any(a["title"]==title for a in articles_db)
+                # Check MongoDB instead of in-memory list
+                exists = articles_collection.find_one({"title": title})
                 if not exists:
                     add_article(title, source["name"], content, source["category"])
-                    news_articles_count += 1
+                    news_articles_count+=1
 
         except Exception as e:
             print(f"Error fetching from {source['name']}: {e}")
@@ -57,7 +57,7 @@ def fetch_rss_news():
     return {"message": f"Successfully fetched {news_articles_count} new articles."}
 
 def cosine_similarity(v1,v2):
-    """Calculates how close two vectors (lists of numbers) are to each other."""
+    """Calculate how close two vectors (lists of numbers) are to each other."""
     if not v1 or not v2:
         return 0.0
     
@@ -68,13 +68,16 @@ def cosine_similarity(v1,v2):
     if magnitude1==0 or magnitude2==0:
         return 0.0
     
-    return dot_product/(magnitude1*magnitude2)
+    return dot_product / (magnitude1 * magnitude2)
 
 def add_article(title: str,source: str,content: str,category: str):
-    """Add a new article and return it with an ID."""
-    new_id = len(articles_db)+1
+    """Add a new article add save it to MongoDB."""
 
-    # Generate the vector coordinate using Ollama!
+    # We create our own integer IDs so we don't break our API routes
+    total_docs = articles_collection.count_documents({})
+    new_id = total_docs + 1
+
+    # Generate vector
     text_to_embed = f"{title}. {content}"
     vector = generate_embedding(text_to_embed)
 
@@ -84,33 +87,38 @@ def add_article(title: str,source: str,content: str,category: str):
         "source": source,
         "content": content,
         "category": category,
-        "embedding": vector, #<--- Save the vector
+        "embedding": vector,
         "created_at": datetime.now().isoformat()
     }
-    articles_db.append(article)
+
+    # Insert into MongoDB
+    articles_collection.insert_one(article)
+
+    # Remove the MongoDB internal _id before returning to FastAPI
+    if "_id" in article:
+        del article["_id"]
+
     return article
 
-def find_similar_articles(target_article_id: int,threshold: float = 0.75):
+def find_similar_articles(target_article_id: int,threshold: float=0.5):
     """Find other articles that are about the exact same news story."""
-    target_article = next((a for a in articles_db if a["id"] == target_article_id), None)
+
+    target_article = articles_collection.find_one({"id": target_article_id})
 
     if not target_article or not target_article.get("embedding"):
         return []
     
     similar_articles = []
 
-    for article in articles_db:
-        # Don't compare it to itself
-        if article["id"] == target_article_id:
-            continue
+    # Get all other articles that have an embedding from MongoDB directly
+    all_other_articles = articles_collection.find({
+        "id": {"$ne": target_article_id},
+        "embedding": {"$exists": True, "$ne": []}
+    })
 
-        if not article.get("embedding"):
-            continue
-
-        # Calculate the distance!
+    for article in all_other_articles:
         score = cosine_similarity(target_article["embedding"], article["embedding"])
 
-        # If the score is higher than 0.75, they are likely the same story
         if score > threshold:
             similar_articles.append({
                 "id": article["id"],
@@ -119,6 +127,5 @@ def find_similar_articles(target_article_id: int,threshold: float = 0.75):
                 "similarity_score": round(score,2)
             })
 
-    # Sort so the highest matches are at the top
     similar_articles.sort(key=lambda x : x["similarity_score"],reverse=True)
     return similar_articles

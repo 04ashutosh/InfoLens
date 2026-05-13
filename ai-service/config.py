@@ -28,3 +28,8 @@ NEWS_SOURCES = [
 
 # Ollama local LLM
 OLLAMA_BASE_URL = "http://localhost:11434"
+
+# MongoDB Settings
+MONGO_URI = "mongodb://localhost:27017/"
+DB_NAME = "infolens_db"
+
