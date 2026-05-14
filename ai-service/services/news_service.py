@@ -100,7 +100,7 @@ def add_article(title: str,source: str,content: str,category: str):
 
     return article
 
-def find_similar_articles(target_article_id: int,threshold: float=0.5):
+def find_similar_articles(target_article_id: int,threshold: float=0.8):
     """Find other articles that are about the exact same news story."""
 
     target_article = articles_collection.find_one({"id": target_article_id})

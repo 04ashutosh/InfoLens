@@ -7,31 +7,83 @@
     </h1>
     <p class="text-gray-400 mt-2 text-lg">Indian Multi-Perspective News Intelligence</p>
 
-    <!-- Health Badge -->
-    <div class="mt-4 inline-block px-4 py-1 rounded-full text-sm"
-         [ngClass]="healthStatus === 'running'
-           ? 'bg-green-900 text-green-300 border border-green-700'
-           : 'bg-red-900 text-red-300 border border-red-700'">
-      AI Service: {{ healthStatus }}
+    <!-- AI Action Buttons -->
+    <div class="mt-8 flex justify-center gap-4">
+      <button (click)="triggerNewsFetch()" [disabled]="isFetchingNews" 
+              class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-medium transition disabled:opacity-50">
+        {{ isFetchingNews ? 'Scraping News & Generating Embeddings...' : '1. Fetch Latest News' }}
+      </button>
+
+      <button (click)="generateDailyBrief()" [disabled]="isGeneratingBrief || articles.length === 0" 
+              class="bg-purple-600 hover:bg-purple-500 text-white px-6 py-2 rounded-lg font-medium transition disabled:opacity-50">
+        {{ isGeneratingBrief ? 'Qwen 2.5 is writing...' : '2. Generate AI Daily Brief' }}
+      </button>
     </div>
   </div>
 
-  <!-- Sources Grid -->
-  <div class="max-w-4xl mx-auto">
-    <h2 class="text-2xl font-semibold mb-6">📡 News Sources</h2>
-
-    <div *ngIf="isLoading" class="text-gray-500 text-center py-8">
-      Loading sources...
+  <!-- AI Daily Brief Panel -->
+  <div *ngIf="dailyBrief" class="max-w-4xl mx-auto mb-12 bg-gradient-to-b from-purple-900/40 to-gray-900 border border-purple-500/30 rounded-2xl p-6">
+    <h2 class="text-2xl font-semibold mb-4 text-purple-300">✨ AI Daily Brief</h2>
+    <p class="text-gray-300 leading-relaxed whitespace-pre-wrap">{{ dailyBrief.daily_brief }}</p>
+    <div class="mt-4 text-sm text-gray-500">
+      Sources Analyzed: <span *ngFor="let s of dailyBrief.sources_used" class="mr-2 px-2 py-1 bg-gray-800 rounded">{{ s }}</span>
     </div>
+  </div>
 
-    <div *ngIf="!isLoading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      <div *ngFor="let source of sources"
-           class="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-orange-500 transition-all duration-300 hover:shadow-lg hover:shadow-orange-500/10">
-        <h3 class="text-lg font-medium text-white">{{ source.name }}</h3>
-        <span class="text-sm text-gray-400 mt-1 inline-block px-2 py-0.5 bg-gray-800 rounded-full">
-          {{ source.category }}
-        </span>
+  <!-- Articles List -->
+  <div class="max-w-4xl mx-auto">
+    <h2 class="text-2xl font-semibold mb-6">📰 Latest Articles</h2>
+
+    <div *ngIf="isLoading" class="text-gray-500 text-center py-8">Loading articles from MongoDB...</div>
+
+    <div *ngIf="!isLoading" class="space-y-4">
+      <!-- Article Card -->
+      <div *ngFor="let article of articles" class="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-gray-700 transition">
+        
+        <div class="flex justify-between items-start">
+          <div>
+            <span class="text-xs text-orange-400 font-bold tracking-wider uppercase">{{ article.source }}</span>
+            <h3 class="text-lg font-medium text-white mt-1">{{ article.title }}</h3>
+          </div>
+          
+          <!-- AI Action Buttons for Specific Article -->
+          <div class="flex gap-2 ml-4 flex-shrink-0">
+            <button (click)="analyzeBias(article.id!)" [disabled]="analyzingBias[article.id!]"
+                    class="text-xs bg-gray-800 hover:bg-orange-600 px-3 py-1 rounded transition disabled:opacity-50">
+              {{ analyzingBias[article.id!] ? 'Analyzing...' : 'Bias Check' }}
+            </button>
+            <button (click)="findSimilar(article.id!)" [disabled]="findingSimilar[article.id!]"
+                    class="text-xs bg-gray-800 hover:bg-green-600 px-3 py-1 rounded transition disabled:opacity-50">
+              {{ findingSimilar[article.id!] ? 'Searching...' : 'Find Similar' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Bias Results Panel -->
+        <div *ngIf="biasResults[article.id!]" class="mt-4 p-4 bg-orange-900/20 border border-orange-500/20 rounded-lg">
+          <div class="flex gap-4 mb-2">
+            <span class="text-sm font-bold" [ngClass]="{'text-red-400': biasResults[article.id!].analysis.bias_rating === 'Right-Leaning', 'text-blue-400': biasResults[article.id!].analysis.bias_rating === 'Left-Leaning', 'text-gray-300': biasResults[article.id!].analysis.bias_rating === 'Center'}">
+              Bias: {{ biasResults[article.id!].analysis.bias_rating }}
+            </span>
+            <span class="text-sm text-yellow-200">Tone: {{ biasResults[article.id!].analysis.emotional_tone }}</span>
+          </div>
+          <p class="text-sm text-gray-400">{{ biasResults[article.id!].analysis.reasoning }}</p>
+        </div>
+
+        <!-- Similar Articles Results Panel -->
+        <div *ngIf="similarResults[article.id!]" class="mt-4 p-4 bg-green-900/20 border border-green-500/20 rounded-lg">
+          <h4 class="text-sm font-semibold text-green-400 mb-2">Semantic Matches:</h4>
+          <p *ngIf="similarResults[article.id!].similar_articles.length === 0" class="text-sm text-gray-500">No similar articles found (Threshold > 0.5)</p>
+          <ul class="text-sm text-gray-300 space-y-2">
+            <li *ngFor="let sim of similarResults[article.id!].similar_articles" class="flex justify-between border-b border-gray-800 pb-1">
+              <span class="truncate pr-4">{{ sim.title }}</span>
+              <span class="text-green-500 flex-shrink-0">{{ sim.similarity_score * 100 | number:'1.0-0' }}% Match</span>
+            </li>
+          </ul>
+        </div>
+
       </div>
     </div>
   </div>
+
 </div>
